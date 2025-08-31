@@ -15,16 +15,24 @@ const stripe = Stripe(process.env.STRIPE_SECRET);
 const app = express();
 app.use(cookieParser()); 
 app.use(cors({
-  origin: 'http://localhost:5173', // frontend origin, need to change to url after deployment
+  origin: 'https://depaulclimbing.com', // frontend origin, need to change to url after deployment
   credentials: true
 }));
 
+// const db = mysql.createConnection({
+//     host: 'localhost',
+//     user: 'root',
+//     password: '',
+//     database: 'test'
+// })
+
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'test'
-})
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT
+});
 
 app.get('/', (re, res)=> {
     return res.json('From backend side');
