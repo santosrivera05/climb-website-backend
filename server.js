@@ -15,28 +15,24 @@ const stripe = Stripe(process.env.STRIPE_SECRET);
 const app = express();
 app.use(cookieParser()); 
 app.use(cors({
-  origin: 'https://depaulclimbing.com', // frontend origin, need to change to url after deployment
+  origin: 'https://depaulclimbing.com',
   credentials: true
 }));
 
-// const db = mysql.createConnection({
-//     host: 'localhost',
-//     user: 'root',
-//     password: '',
-//     database: 'test'
-// })
-
-const db = mysql.createConnection({
-  host: process.env.MYSQLHOST,
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
-  port: process.env.MYSQLPORT
+const db = mysql.createPool({
+  uri: process.env.DATABASE_URL,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-app.get('/', (re, res)=> {
+app.get('/', (req, res)=> {
     return res.json('From backend side');
-})
+});
+
+app.use('/webhook', express.raw({ type: 'application/json' }));
+
+app.use(express.json());
 
 app.post('/webhook', express.raw({ type: "application/json" }), (req, res) => {
     res.sendStatus(200);
@@ -81,8 +77,6 @@ app.post('/webhook', express.raw({ type: "application/json" }), (req, res) => {
   }
     res.json({ received: true });
 });
-
-app.use(express.json());
 
 app.get('/refresh', (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
@@ -260,8 +254,8 @@ app.post('/purchase-passes', async (req, res) => {
                     quantity: 1,
                 },
             ],
-            success_url: "http://localhost:5173/success",
-            cancel_url: "http://localhost:5173/cancel",
+            success_url: "https://depaulclimbing.com/success",
+            cancel_url: "https://depaulclimbing.com/cancel",
             metadata: { email, passes, type: "passes" },
         });
 
