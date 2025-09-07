@@ -19,65 +19,75 @@ app.use(cors({
   credentials: true
 }));
 
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 app.get('/', (req, res)=> {
     return res.json('From backend side');
 });
 
+app.listen(3000, ()=> {
+    console.log('Server listening');
+   })
+
 app.use('/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
 
-app.post('/webhook', express.raw({ type: "application/json" }), (req, res) => {
-    res.sendStatus(200);
+app.post("/webhook", express.raw({ type: "application/json" }),
+  async (req, res) => {
     const sig = req.headers["stripe-signature"];
 
     let event;
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
     } catch (err) {
-        console.error("Webhook signature verification failed.", err.message);
-        return res.sendStatus(400);
+      console.error("❌ Webhook signature verification failed:", err.message);
+      return res.sendStatus(400);
     }
 
     if (event.type === "checkout.session.completed") {
-        const session = event.data.object;
+      const session = event.data.object;
 
-        // Retrieve metadata if you store passes + email in session
-        const email = 'santos@depaul.edu' // session.metadata.email;
-        const passes = 1 // session.metadata.passes;
-        const type = 'passes' // session.metadata.type;
-    console.log(email, passes, type);
+      // TODO: pull from session.metadata
+      const email = "santos@depaul.edu"; // session.metadata.email
+      const passes = 1;                  // session.metadata.passes
+      const type = "passes";             // session.metadata.type
 
-    try {
-      if (type === "dues") {
-        // Update database: mark dues as paid
-        db.query(
-          "UPDATE users SET Dues = 1 WHERE Email = ?",
-          [email]
-        );
-        console.log(`✅ Dues paid for ${email}`);
-      } else if (type === "passes") {
-        // Update database: increment passes
-        db.query(
-          "UPDATE users SET Passes = Passes + ? WHERE Email = ?",
-          [passes, email]
-        );
-        console.log(`✅ Added ${passes} passes for ${email}`);
+      console.log("Webhook received:", { email, passes, type });
+
+      try {
+        if (type === "dues") {
+          await db.query("UPDATE users SET Dues = 1 WHERE Email = ?", [email]);
+          console.log(`✅ Dues paid for ${email}`);
+        } else if (type === "passes") {
+          await db.query(
+            "UPDATE users SET Passes = Passes + ? WHERE Email = ?",
+            [passes, email]
+          );
+          console.log(`✅ Added ${passes} passes for ${email}`);
+        }
+      } catch (dbErr) {
+        console.error("❌ Database update failed:", dbErr);
+        return res.status(500).json({ received: false, error: "DB error" });
       }
-    } catch (dbErr) {
-      console.error("Database update failed:", dbErr);
     }
-  }
+    // ✅ Always respond to Stripe that the event was received
     res.json({ received: true });
-});
+  }
+);
 
 app.get('/refresh', (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
@@ -113,126 +123,149 @@ app.get('/refresh', (req, res) => {
     });
 });
 
-app.get('/users', (req, res)=> {
-    const sql = 'SELECT * FROM users'
-    db.query(sql, (err, data)=> {
-        if(err) return res.json(err);
-        return res.json(data);
-    })
-})
+app.get('/users', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM users');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
+});
 
-app.get('/check-ins', (req, res) => {
-    const sql = 'SELECT * FROM `check-ins` ORDER BY DateTime DESC';
-    db.query(sql, (err, results) => {
-        if (err) return res.json(err);
-        return res.json(results);
+app.get('/check-ins', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM `check-ins` ORDER BY DateTime DESC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
+});
+
+app.post('/auth', async (req, res) => {
+  const { user, pwd } = req.body;
+  try {
+    const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [user]);
+    if (results.length === 0) return res.status(401).json({ message: 'Email not found' });
+
+    const dbUser = results[0];
+    const match = await bcrypt.compare(pwd, dbUser.Password);
+    if (!match) return res.status(401).json({ message: 'Incorrect password' });
+
+    const accessToken = jwt.sign(
+      { email: dbUser.Email, role: dbUser.Role },
+      'your_access_token_secret',
+      { expiresIn: '15m' }
+    );
+
+    const refreshToken = jwt.sign(
+      { email: dbUser.Email, role: dbUser.Role },
+      'your_refresh_token_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true, // change to true in production (https)
+      sameSite: 'Strict',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-})
 
-app.listen(3000, ()=> {
-    console.log('Server listening');
-   })
-
-app.post('/auth', (req, res) => {
-    const { user, pwd } = req.body;
-    const sql = "SELECT * FROM users WHERE Email = ?";
-    db.query(sql, [user], (err, results) => {
-        if (err) return res.status(500).json({ message: 'Server error' });
-        if (results.length === 0) return res.status(401).json({ message: 'Email not found' });
-
-        const dbUser = results[0];
-        bcrypt.compare(pwd, dbUser.Password, (err, result) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            if (!result) return res.status(401).json({ message: 'Incorrect password' });
-
-            // Generate access token
-            const accessToken = jwt.sign(
-                { email: dbUser.Email, role: dbUser.Role },
-                'your_access_token_secret',
-                { expiresIn: '15m' }
-            );
-
-            // Generate refresh token
-            const refreshToken = jwt.sign(
-                { email: dbUser.Email, role: dbUser.Role },
-                'your_refresh_token_secret',
-                { expiresIn: '7d' }
-            );
-
-            // Set refresh token as HTTP-only cookie
-            res.cookie('refreshToken', refreshToken, {
-                httpOnly: true,
-                secure: false, // set to true in production (HTTPS)
-                sameSite: 'Strict',
-                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-                path: '/'
-            });
-
-            // Exclude password from response
-            const { Password, ...userData } = dbUser;
-            return res.json({ user: userData, accessToken });
-        });
-    });
+    const { Password, ...userData } = dbUser;
+    res.json({ user: userData, accessToken });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
 });
 
 app.post('/logout', (req, res) => {
     res.clearCookie('refreshToken', {
         httpOnly: true,
-        secure: false, // set to true in production (HTTPS)
+        secure: true, // set to true in production (HTTPS)
         sameSite: 'Strict',
         path: '/'
     });
     return res.json({ message: 'Logged out successfully' });
 });
 
-app.post('/register', (req, res) => {
-    const { email, pwd, firstName, lastName } = req.body;
-    console.log(email, pwd, firstName, lastName);
-        // Hash password and insert new user
-        bcrypt.hash(pwd, 10, (err, hash) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
+app.post('/register', async (req, res) => {
+  const { email, pwd, firstName, lastName } = req.body;
+  console.log(email, pwd, firstName, lastName);
 
-            const insertSql = "INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            db.query(insertSql, [email, firstName, lastName, hash, 0, 2001, 0], (err, result) => {
-                if (err) return res.status(500).json({ message: 'Server error' });
-                return res.status(201).json({ message: 'User registered' });
-            });
-        });
+  try {
+    // hash password with async/await instead of callback
+    const hash = await bcrypt.hash(pwd, 10);
+
+    const insertSql = `
+      INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    const [result] = await db.query(insertSql, [
+      email,
+      firstName,
+      lastName,
+      hash,
+      0,    // Passes
+      2001, // Role
+      0     // Dues
+    ]);
+
+    return res.status(201).json({ message: 'User registered', userId: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err });
+  }
+});
+
+app.post("/use-pass", async (req, res) => {
+  const { firstName, lastName, email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email not found" });
+
+  const now = new Date();
+  const cstDate = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Chicago" })
+  );
+
+  // Format as YYYY-MM-DD HH:MM:SS
+  const currentDateTime =
+    cstDate.getFullYear() +
+    "-" +
+    String(cstDate.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(cstDate.getDate()).padStart(2, "0") +
+    " " +
+    String(cstDate.getHours()).padStart(2, "0") +
+    ":" +
+    String(cstDate.getMinutes()).padStart(2, "0") +
+    ":" +
+    String(cstDate.getSeconds()).padStart(2, "0");
+
+  console.log("Check-in time:", currentDateTime);
+
+  try {
+    // 1. Try to use a pass
+    const [updateResult] = await db.query(
+      "UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0",
+      [email]
+    );
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ message: "User not found or no passes left" });
+    }
+
+    // 2. Insert into check-ins table
+    await db.query(
+      "INSERT INTO `check-ins` (First, Last, Email, DateTime) VALUES (?, ?, ?, ?)",
+      [firstName, lastName, email, currentDateTime]
+    );
+
+    return res.status(200).json({
+      message: "✅ Pass used and check-in recorded",
+      dateTime: currentDateTime,
     });
-
-app.post('/use-pass', (req, res) => {
-    const { firstName, lastName, email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email not found' });
-
-    const now = new Date();
-    const cstDate = new Date(now.toLocaleString("en-US", {timeZone: "America/Chicago"}));
-    
-    // Format as YYYY-MM-DD HH:MM:SS for MySQL
-    const currentDateTime = cstDate.getFullYear() + '-' +
-        String(cstDate.getMonth() + 1).padStart(2, '0') + '-' +
-        String(cstDate.getDate()).padStart(2, '0') + ' ' +
-        String(cstDate.getHours()).padStart(2, '0') + ':' +
-        String(cstDate.getMinutes()).padStart(2, '0') + ':' +
-        String(cstDate.getSeconds()).padStart(2, '0');
-
-    console.log(currentDateTime); // Will output: 2025-08-05 19:48:42
-
-    const useSql = 'UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0';
-    db.query(useSql, [email], (err, result) => {
-        if (err) return res.status(500).json({ message: 'Server error' });
-        if (result.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
-
-
-        const insertSql = "INSERT INTO `check-ins` (First, Last, Email, DateTime) VALUES (?, ?, ?, ?)";
-        db.query(insertSql, [firstName, lastName, email, currentDateTime], (err, result) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            return res.status(200).json({ 
-                message: 'Pass used and check-in recorded',
-                dateTime: currentDateTime});
-        });
-
-    });
-
+  } catch (err) {
+    console.error("❌ Database error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
 
 app.post('/purchase-passes', async (req, res) => {
@@ -343,65 +376,93 @@ async function sendVerificationEmail(recipient_email, OTP) {
     }
 };
 
-app.post('/send-recovery-email', (req, res) => {
-    const { recipient_email, pwd, firstName, lastName, OTP } = req.body;
-    console.log(recipient_email, pwd, firstName, lastName, OTP);
+app.post("/send-recovery-email", async (req, res) => {
+  const { recipient_email, pwd, firstName, lastName, OTP } = req.body;
+  console.log(recipient_email, pwd, firstName, lastName, OTP);
 
+  try {
     if (!firstName) {
-        const checkSql = "SELECT * FROM users WHERE Email = ?";
-        db.query(checkSql, [recipient_email], (err, results) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            if (results.length === 0) return res.status(404).json({ message: 'No account with this email' });
-    });
+      // Recovery flow: check if user exists
+      const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [
+        recipient_email,
+      ]);
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: "No account with this email" });
+      }
     } else {
-        if (!recipient_email || !pwd) return res.status(400).json({ message: 'Email and password required' });
+      // Registration flow: check if account already exists
+      if (!recipient_email || !pwd) {
+        return res
+          .status(400)
+          .json({ message: "Email and password required" });
+      }
 
-        const checkSql = "SELECT * FROM users WHERE Email = ?";
-        db.query(checkSql, [recipient_email], (err, results) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            if (results.length > 0) return res.status(409).json({ message: 'Already account with this email' });
-        });
-    };
-    sendVerificationEmail(recipient_email, OTP)
-    .then((response) => res.send(response.message))
-    .catch((error) => res.status(500).send(error.message));
-    });
+      const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [
+        recipient_email,
+      ]);
 
-app.post('/reset-password', (req, res) => {
-    const { email, pwd} = req.body;
+      if (results.length > 0) {
+        return res
+          .status(409)
+          .json({ message: "Already account with this email" });
+      }
+    }
+    // ✅ If checks pass, send email
+    const response = await sendVerificationEmail(recipient_email, OTP);
+    return res.send(response.message);
+  } catch (err) {
+    console.error("❌ Error in /send-recovery-email:", err);
+    return res.status(500).send(err.message || "Server error");
+  }
+});
 
-    if (!email || !pwd) {
-        return res.status(400).json({ message: 'Email and password are required' });
+app.post("/reset-password", async (req, res) => {
+  const { email, pwd } = req.body;
+
+  if (!email || !pwd) {
+    return res
+      .status(400)
+      .json({ message: "Email and password are required" });
+  }
+
+  try {
+    // 1. Check if user exists
+    const [results] = await db.query(
+      "SELECT Password FROM users WHERE Email = ?",
+      [email]
+    );
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const checkSql = "SELECT Password FROM users WHERE Email = ?";
-    db.query(checkSql, [email], (err, results) => {
-        if (err) return res.status(500).json({ message: 'Server error' });
-        if (results.length === 0) return res.status(404).json({ message: 'User not found' });
+    const currentHashedPassword = results[0].Password;
 
-        const currentHashedPassword = results[0].Password;
+    // 2. Compare new password with old
+    const isSame = await bcrypt.compare(pwd, currentHashedPassword);
+    if (isSame) {
+      return res.status(400).json({
+        message: "New password cannot be the same as the old password",
+      });
+    }
 
-        // Compare the new password with the old hashed password
-        bcrypt.compare(pwd, currentHashedPassword, (err, isSame) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            
-            if (isSame) {
-                return res.status(400).json({ message: 'New password cannot be the same as the old password' });
-            }
+    // 3. Hash new password
+    const newHashedPassword = await bcrypt.hash(pwd, 10);
 
-            // Hash the new password
-            bcrypt.hash(pwd, 10, (err, hash) => {
-                if (err) return res.status(500).json({ message: 'Server error' });
+    // 4. Update database
+    const [updateResult] = await db.query(
+      "UPDATE users SET Password = ? WHERE Email = ?",
+      [newHashedPassword, email]
+    );
 
-                const updateSql = "UPDATE users SET Password = ? WHERE Email = ?";
-                db.query(updateSql, [hash, email], (err, result) => {
-                    if (err) return res.status(500).json({ message: 'Server error' });
-                    if (result.affectedRows === 0) {
-                        return res.status(404).json({ message: 'User not found' });
-                    }
-                    return res.status(200).json({ message: 'Password reset successful' });
-                });
-            });
-        });
-    });
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ message: "Password reset successful" });
+  } catch (err) {
+    console.error("❌ Error in /reset-password:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
