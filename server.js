@@ -20,10 +20,11 @@ app.use(cors({
 }));
 
 const db = mysql.createPool({
-  uri: process.env.MYSQL_CONNECT,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 });
 
 app.get('/', (req, res)=> {
@@ -288,8 +289,8 @@ app.post('/purchase-dues', async (req, res) => {
             }
         ],
         mode: 'payment',
-        success_url: 'http://localhost:5173/success',
-        cancel_url: 'http://localhost:5173/cancel',
+        success_url: "https://depaulclimbing.com/success",
+        cancel_url: "https://depaulclimbing.com/cancel",
         metadata: { email, type:"dues" },
     })
 
