@@ -8,6 +8,8 @@ import FormData from "form-data";
 import Mailgun from "mailgun.js"; 
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
@@ -462,4 +464,16 @@ app.post("/reset-password", async (req, res) => {
     console.error("❌ Error in /reset-password:", err);
     return res.status(500).json({ message: "Server error" });
   }
+});
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve React frontend
+app.use(express.static(path.join(__dirname, 'client/dist')));
+
+// React Router fallback (important!)
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'client/dist', 'index.html'));
 });
