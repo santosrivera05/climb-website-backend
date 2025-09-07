@@ -172,7 +172,7 @@ app.post('/auth', async (req, res) => {
     });
 
     const { Password, ...userData } = dbUser;
-    res.json({ user: userData, accessToken });
+    return res.json({ user: userData, accessToken });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err });
   }
