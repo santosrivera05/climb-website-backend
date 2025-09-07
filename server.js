@@ -70,10 +70,10 @@ app.post("/webhook", express.raw({ type: "application/json" }),
 
       try {
         if (type === "dues") {
-          await db.query("UPDATE users SET Dues = 1 WHERE Email = ?", [email]);
+          await db.execute("UPDATE users SET Dues = 1 WHERE Email = ?", [email]);
           console.log(`✅ Dues paid for ${email}`);
         } else if (type === "passes") {
-          await db.query(
+          await db.execute(
             "UPDATE users SET Passes = Passes + ? WHERE Email = ?",
             [passes, email]
           );
@@ -89,43 +89,48 @@ app.post("/webhook", express.raw({ type: "application/json" }),
   }
 );
 
-app.get('/refresh', (req, res) => {
-    const refreshToken = req.cookies?.refreshToken;
-    if (!refreshToken) return res.status(401).json({ message: 'No refresh token provided' });
+app.get('/refresh', async (req, res) => {
+  const refreshToken = req.cookies?.refreshToken;
+  if (!refreshToken) return res.status(401).json({ message: 'No refresh token provided' });
 
-    jwt.verify(refreshToken, 'your_refresh_token_secret', (err, decoded) => {
-        if (err) return res.status(403).json({ message: 'Invalid refresh token' });
+  try {
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, 'your_refresh_token_secret');
 
-        // Get user data from database
-        const sql = "SELECT * FROM users WHERE Email = ?";
-        db.query(sql, [decoded.email], (err, results) => {
-            if (err) return res.status(500).json({ message: 'Server error' });
-            if (results.length === 0) return res.status(404).json({ message: 'User not found' });
+    // Fetch user from DB
+    const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [decoded.email]);
+    if (results.length === 0) return res.status(404).json({ message: 'User not found' });
 
-            const dbUser = results[0];
+    const dbUser = results[0];
 
-            // Generate new access token
-            const accessToken = jwt.sign(
-                { email: dbUser.Email, role: dbUser.Role },
-                'your_access_token_secret',
-                { expiresIn: '15m' }
-            );
+    // Generate new access token
+    const accessToken = jwt.sign(
+      { email: dbUser.Email, role: dbUser.Role },
+      'your_access_token_secret',
+      { expiresIn: '15m' }
+    );
 
-            // Exclude password from response
-            const { Password, ...userData } = dbUser;
+    // Exclude password from response
+    const { Password, ...userData } = dbUser;
 
-            res.json({ 
-                accessToken,
-                roles: [dbUser.Role], // Array format to match your frontend expectations
-                user: userData
-            });
-        });
+    res.json({
+      accessToken,
+      roles: [dbUser.Role], // Keep array format for frontend
+      user: userData,
     });
+
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      return res.status(403).json({ message: 'Invalid or expired refresh token' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM users');
+    const [rows] = await db.execute('SELECT * FROM users');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err });
@@ -134,7 +139,7 @@ app.get('/users', async (req, res) => {
 
 app.get('/check-ins', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM `check-ins` ORDER BY DateTime DESC');
+    const [rows] = await db.execute('SELECT * FROM `check-ins` ORDER BY DateTime DESC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err });
@@ -144,7 +149,7 @@ app.get('/check-ins', async (req, res) => {
 app.post('/auth', async (req, res) => {
   const { user, pwd } = req.body;
   try {
-    const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [user]);
+    const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [user]);
     if (results.length === 0) return res.status(401).json({ message: 'Email not found' });
 
     const dbUser = results[0];
@@ -196,18 +201,10 @@ app.post('/register', async (req, res) => {
     // hash password with async/await instead of callback
     const hash = await bcrypt.hash(pwd, 10);
 
-    const insertSql = `
-      INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    const [result] = await db.query(insertSql, [
-      email,
-      firstName,
-      lastName,
-      hash,
-      0,    // Passes
-      2001, // Role
-      0     // Dues
+    const insertSql = `INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+    const [result] = await db.execute(insertSql, [
+      email, firstName, lastName, hash, 0, 2001, 0
     ]);
 
     return res.status(201).json({ message: 'User registered', userId: result.insertId });
@@ -243,7 +240,7 @@ app.post("/use-pass", async (req, res) => {
 
   try {
     // 1. Try to use a pass
-    const [updateResult] = await db.query(
+    const [updateResult] = await db.execute(
       "UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0",
       [email]
     );
@@ -253,7 +250,7 @@ app.post("/use-pass", async (req, res) => {
     }
 
     // 2. Insert into check-ins table
-    await db.query(
+    await db.execute(
       "INSERT INTO `check-ins` (First, Last, Email, DateTime) VALUES (?, ?, ?, ?)",
       [firstName, lastName, email, currentDateTime]
     );
@@ -383,7 +380,7 @@ app.post("/send-recovery-email", async (req, res) => {
   try {
     if (!firstName) {
       // Recovery flow: check if user exists
-      const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [
+      const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [
         recipient_email,
       ]);
 
@@ -398,7 +395,7 @@ app.post("/send-recovery-email", async (req, res) => {
           .json({ message: "Email and password required" });
       }
 
-      const [results] = await db.query("SELECT * FROM users WHERE Email = ?", [
+      const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [
         recipient_email,
       ]);
 
@@ -428,7 +425,7 @@ app.post("/reset-password", async (req, res) => {
 
   try {
     // 1. Check if user exists
-    const [results] = await db.query(
+    const [results] = await db.execute(
       "SELECT Password FROM users WHERE Email = ?",
       [email]
     );
@@ -451,7 +448,7 @@ app.post("/reset-password", async (req, res) => {
     const newHashedPassword = await bcrypt.hash(pwd, 10);
 
     // 4. Update database
-    const [updateResult] = await db.query(
+    const [updateResult] = await db.execute(
       "UPDATE users SET Password = ? WHERE Email = ?",
       [newHashedPassword, email]
     );
