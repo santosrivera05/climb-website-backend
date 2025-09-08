@@ -15,6 +15,7 @@ dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
 
 const app = express();
+const apiRouter = express.Router();
 app.use(cookieParser()); 
 app.use(cors({
   origin: 'https://depaulclimbing.com',
@@ -87,7 +88,7 @@ app.post("/webhook", express.raw({ type: "application/json" }),
   }
 );
 
-app.get('/refresh', async (req, res) => {
+apiRouter.get('/refresh', async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
   if (!refreshToken) return res.status(401).json({ message: 'No refresh token provided' });
 
@@ -126,7 +127,7 @@ app.get('/refresh', async (req, res) => {
   }
 });
 
-app.get('/users', async (req, res) => {
+apiRouter.get('/users', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM users');
     res.json(rows);
@@ -135,7 +136,7 @@ app.get('/users', async (req, res) => {
   }
 });
 
-app.get('/check-ins', async (req, res) => {
+apiRouter.get('/check-ins', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM `check-ins` ORDER BY DateTime DESC');
     res.json(rows);
@@ -144,7 +145,7 @@ app.get('/check-ins', async (req, res) => {
   }
 });
 
-app.post('/auth', async (req, res) => {
+apiRouter.post('/auth', async (req, res) => {
   const { user, pwd } = req.body;
   try {
     const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [user]);
@@ -181,7 +182,7 @@ app.post('/auth', async (req, res) => {
   }
 });
 
-app.post('/logout', (req, res) => {
+apiRouter.post('/logout', (req, res) => {
     res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: true, // set to true in production (HTTPS)
@@ -191,7 +192,7 @@ app.post('/logout', (req, res) => {
     return res.json({ message: 'Logged out successfully' });
 });
 
-app.post('/register', async (req, res) => {
+apiRouter.post('/register', async (req, res) => {
   const { email, pwd, firstName, lastName } = req.body;
   console.log(email, pwd, firstName, lastName);
 
@@ -211,7 +212,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
-app.post("/use-pass", async (req, res) => {
+apiRouter.post("/use-pass", async (req, res) => {
   const { firstName, lastName, email } = req.body;
   if (!email) return res.status(400).json({ message: "Email not found" });
 
@@ -263,7 +264,7 @@ app.post("/use-pass", async (req, res) => {
   }
 });
 
-app.post('/purchase-passes', async (req, res) => {
+apiRouter.post('/purchase-passes', async (req, res) => {
     const { email, passes, price } = req.body;
 
     try {
@@ -299,7 +300,7 @@ app.post('/purchase-passes', async (req, res) => {
 });
 
 // need to update dues in db after successful payment
-app.post('/purchase-dues', async (req, res) => {
+apiRouter.post('/purchase-dues', async (req, res) => {
     const { email, price } = req.body;
 
     const session = await stripe.checkout.sessions.create({
@@ -371,7 +372,7 @@ async function sendVerificationEmail(recipient_email, OTP) {
     }
 };
 
-app.post("/send-recovery-email", async (req, res) => {
+apiRouter.post("/send-recovery-email", async (req, res) => {
   const { recipient_email, pwd, firstName, lastName, OTP } = req.body;
   console.log(recipient_email, pwd, firstName, lastName, OTP);
 
@@ -412,7 +413,7 @@ app.post("/send-recovery-email", async (req, res) => {
   }
 });
 
-app.post("/reset-password", async (req, res) => {
+apiRouter.post("/reset-password", async (req, res) => {
   const { email, pwd } = req.body;
 
   if (!email || !pwd) {
@@ -462,18 +463,16 @@ app.post("/reset-password", async (req, res) => {
   }
 });
 
+app.use('/api', apiRouter);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Serve React frontend
 app.use(express.static(path.join(__dirname, 'dist')));
-
-// React Router fallback (important!)
-app.get('*', (req, res) => {
+app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
 });
-
 
 app.listen(3000, ()=> {
     console.log('Server listening');
