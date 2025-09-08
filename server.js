@@ -36,10 +36,6 @@ app.get('/', (req, res)=> {
     return res.json('From backend side');
 });
 
-app.listen(3000, ()=> {
-    console.log('Server listening');
-   })
-
 app.use('/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
@@ -64,9 +60,9 @@ app.post("/webhook", express.raw({ type: "application/json" }),
       const session = event.data.object;
 
       // TODO: pull from session.metadata
-      const email = "santos@depaul.edu"; // session.metadata.email
-      const passes = 1;                  // session.metadata.passes
-      const type = "passes";             // session.metadata.type
+      const email = session.metadata.email
+      const passes = session.metadata.passes
+      const type = session.metadata.type
 
       console.log("Webhook received:", { email, passes, type });
 
@@ -471,9 +467,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Serve React frontend
-app.use(express.static(path.join(__dirname, 'client/dist')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // React Router fallback (important!)
 app.get('*', (req, res) => {
-  res.sendFile(path.resolve(__dirname, 'client/dist', 'index.html'));
+  res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
 });
+
+
+app.listen(3000, ()=> {
+    console.log('Server listening');
+   });
