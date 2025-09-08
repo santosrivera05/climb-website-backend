@@ -468,10 +468,11 @@ app.use('/api', apiRouter);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve React frontend
-app.use(express.static(path.join(__dirname, 'dist')));
+const clientBuildPath = path.join(__dirname, 'dist');
+app.use(express.static(clientBuildPath));
+
 app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
 app.listen(3000, ()=> {
