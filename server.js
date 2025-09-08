@@ -33,10 +33,6 @@ const db = mysql.createPool({
   queueLimit: 0,
 });
 
-app.get('/', (req, res)=> {
-    return res.json('From backend side');
-});
-
 app.use('/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
@@ -87,6 +83,8 @@ app.post("/webhook", express.raw({ type: "application/json" }),
     res.json({ received: true });
   }
 );
+
+app.use('/api', apiRouter); // Mount API router
 
 apiRouter.get('/refresh', async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
@@ -463,18 +461,23 @@ apiRouter.post("/reset-password", async (req, res) => {
   }
 });
 
-app.use('/api', apiRouter);
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const clientBuildPath = path.join(__dirname, 'dist');
 app.use(express.static(clientBuildPath));
 
+// Catch-all route LAST (with proper filtering)
 app.get('*', (req, res) => {
+  // Don't serve React app for API routes
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ message: 'API route not found' });
+  }
+  
+  console.log('Catch-all route hit:', req.path);
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
-app.listen(3000, ()=> {
-    console.log('Server listening');
-   });
+// Start server
+app.listen(3000, () => {
+    console.log('Server listening on port 3000');
+});
