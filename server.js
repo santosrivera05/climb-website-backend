@@ -8,8 +8,6 @@ import FormData from "form-data";
 import Mailgun from "mailgun.js"; 
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
-import path from "path";
-import { fileURLToPath } from "url";
 
 dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
@@ -459,22 +457,6 @@ apiRouter.post("/reset-password", async (req, res) => {
     console.error("❌ Error in /reset-password:", err);
     return res.status(500).json({ message: "Server error" });
   }
-});
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const clientBuildPath = path.join(__dirname, 'dist');
-app.use(express.static(clientBuildPath));
-
-// Catch-all route LAST (with proper filtering)
-app.get('*', (req, res) => {
-  // Don't serve React app for API routes
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ message: 'API route not found' });
-  }
-  
-  console.log('Catch-all route hit:', req.path);
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
 // Start server
