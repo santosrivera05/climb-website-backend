@@ -240,8 +240,8 @@ apiRouter.post("/use-pass", async (req, res) => {
 
     // 2. Insert into check-ins table
     await db.execute(
-      "INSERT INTO `check-ins` (First, Last, Email, DateTime) VALUES (?, ?, ?, ?)",
-      [firstName, lastName, email, currentDateTime]
+      "INSERT INTO `check-ins` (First, Last, Email, Membership, DateTime) VALUES (?, ?, ?, ?, ?)",
+      [firstName, lastName, email, membership, currentDateTime]
     );
 
     return res.status(200).json({
@@ -276,7 +276,10 @@ apiRouter.post('/undo-check-in', async (req, res) => {
             );
         }
 
-        return res.status(200).json({ message: "✅ Check-in undone" });
+        return res.status(200).json({ 
+            message: "✅ Check-in undone",
+            checkIn: result[0]
+         });
     } catch (err) {
         console.error("❌ Database error:", err);
         return res.status(500).json({ message: "Server error" });
