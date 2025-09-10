@@ -189,17 +189,17 @@ apiRouter.post('/logout', (req, res) => {
 });
 
 apiRouter.post('/register', async (req, res) => {
-  const { email, pwd, firstName, lastName } = req.body;
-  console.log(email, pwd, firstName, lastName);
+  const { email, pwd, firstName, lastName, membership } = req.body;
+  console.log(email, pwd, firstName, lastName, membership);
 
   try {
     // hash password with async/await instead of callback
     const hash = await bcrypt.hash(pwd, 10);
 
-    const insertSql = `INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    const insertSql = `INSERT INTO users (Email, First, Last, Password, Passes, Role, Dues, Membership) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const [result] = await db.execute(insertSql, [
-      email, firstName, lastName, hash, 0, 2001, 0
+      email, firstName, lastName, hash, 0, 2001, 0, membership
     ]);
 
     return res.status(201).json({ message: 'User registered', userId: result.insertId });
@@ -209,7 +209,7 @@ apiRouter.post('/register', async (req, res) => {
 });
 
 apiRouter.post("/use-pass", async (req, res) => {
-  const { firstName, lastName, email } = req.body;
+  const { firstName, lastName, email, membership} = req.body;
   if (!email) return res.status(400).json({ message: "Email not found" });
 
   const now = new Date();
@@ -217,31 +217,27 @@ apiRouter.post("/use-pass", async (req, res) => {
     now.toLocaleString("en-US", { timeZone: "America/Chicago" })
   );
 
-  // Format as YYYY-MM-DD HH:MM:SS
-  const currentDateTime =
-    cstDate.getFullYear() +
-    "-" +
-    String(cstDate.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(cstDate.getDate()).padStart(2, "0") +
-    " " +
-    String(cstDate.getHours()).padStart(2, "0") +
-    ":" +
-    String(cstDate.getMinutes()).padStart(2, "0") +
-    ":" +
-    String(cstDate.getSeconds()).padStart(2, "0");
+    // Format as YYYY-MM-DD HH:MM:SS for MySQL
+    const currentDateTime = cstDate.getFullYear() + '-' +
+        String(cstDate.getMonth() + 1).padStart(2, '0') + '-' +
+        String(cstDate.getDate()).padStart(2, '0') + ' ' +
+        String(cstDate.getHours()).padStart(2, '0') + ':' +
+        String(cstDate.getMinutes()).padStart(2, '0') + ':' +
+        String(cstDate.getSeconds()).padStart(2, '0');
 
-  console.log("Check-in time:", currentDateTime);
+    console.log(currentDateTime); // Will output: 2025-08-05 19:48:42
 
   try {
-    // 1. Try to use a pass
-    const [updateResult] = await db.execute(
-      "UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0",
-      [email]
-    );
+    if (membership === 0) { // if user does not have membership, skip passes
+        // 1. Try to use a pass
+        const [updateResult] = await db.execute(
+        "UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0",
+        [email]
+        );
 
-    if (updateResult.affectedRows === 0) {
-      return res.status(404).json({ message: "User not found or no passes left" });
+        if (updateResult.affectedRows === 0) {
+        return res.status(404).json({ message: "User not found or no passes left" });
+        }
     }
 
     // 2. Insert into check-ins table
@@ -369,8 +365,8 @@ async function sendVerificationEmail(recipient_email, OTP) {
 };
 
 apiRouter.post("/send-recovery-email", async (req, res) => {
-  const { recipient_email, pwd, firstName, lastName, OTP } = req.body;
-  console.log(recipient_email, pwd, firstName, lastName, OTP);
+  const { recipient_email, pwd, firstName } = req.body;
+  console.log(recipient_email, pwd, firstName);
 
   try {
     if (!firstName) {
