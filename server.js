@@ -278,7 +278,8 @@ apiRouter.post('/undo-check-in', async (req, res) => {
 
         return res.status(200).json({ 
             message: "✅ Check-in undone",
-            checkIn: result[0]
+            email: email,
+            dateTime: dateTime
          });
     } catch (err) {
         console.error("❌ Database error:", err);
