@@ -229,7 +229,7 @@ apiRouter.post("/use-pass", async (req, res) => {
     if (membership === 0) { // if user does not have membership, skip passes
         // 1. Try to use a pass
         const [updateResult] = await db.execute(
-        "UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0",
+        `UPDATE users SET Passes = Passes - 1 WHERE Email = ? AND Passes > 0`,
         [email]
         );
 
@@ -252,6 +252,35 @@ apiRouter.post("/use-pass", async (req, res) => {
     console.error("❌ Database error:", err);
     return res.status(500).json({ message: "Server error" });
   }
+});
+
+apiRouter.post('/undo-check-in', async (req, res) => {
+    const { email, membership, dateTime } = req.body;
+
+    try {
+        // Remove from check-ins table
+        const [result] = await db.execute(
+            "DELETE FROM `check-ins` WHERE Email = ? AND DateTime = ?",
+            [email, dateTime]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Check-in not found" });
+        }
+
+        // If user is not a member, restore their pass
+        if (membership === 0) {
+            await db.execute(
+                "UPDATE users SET Passes = Passes + 1 WHERE Email = ?",
+                [email]
+            );
+        }
+
+        return res.status(200).json({ message: "✅ Check-in undone" });
+    } catch (err) {
+        console.error("❌ Database error:", err);
+        return res.status(500).json({ message: "Server error" });
+    }
 });
 
 apiRouter.post('/purchase-passes', async (req, res) => {
