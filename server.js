@@ -366,7 +366,7 @@ async function sendVerificationEmail(recipient_email, OTP) {
 
 apiRouter.post("/send-recovery-email", async (req, res) => {
   const { recipient_email, pwd, firstName } = req.body;
-  console.log(recipient_email, pwd, firstName);
+  console.log(recipient_email, pwd, firstName, OTP);
 
   try {
     if (!firstName) {
