@@ -213,9 +213,7 @@ apiRouter.post("/use-pass", async (req, res) => {
   if (!email) return res.status(400).json({ message: "Email not found" });
 
   const now = new Date();
-  const cstDate = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Chicago" })
-  );
+  const cstDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
 
     // Format as YYYY-MM-DD HH:MM:SS for MySQL
     const currentDateTime = cstDate.getFullYear() + '-' +
@@ -248,7 +246,7 @@ apiRouter.post("/use-pass", async (req, res) => {
 
     return res.status(200).json({
       message: "✅ Pass used and check-in recorded",
-      dateTime: currentDateTime,
+      dateTime: new Date(currentDateTime).toISOString(),
     });
   } catch (err) {
     console.error("❌ Database error:", err);
