@@ -61,11 +61,11 @@ app.post("/webhook", express.raw({ type: "application/json" }),
 
       // TODO: pull from session.metadata
       const email = session.metadata.email
-      const passes = +session.metadata.passes
+      const passes = session.metadata.passes
       const type = session.metadata.type
 
       console.error("Webhook received:", { email, passes, type });
-      console.error("Webhook received:", { email, passes, type });
+      process.stdout.write(""); // flush stdout buffer
 
       try {
         if (type === "dues") {
