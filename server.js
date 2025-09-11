@@ -12,6 +12,9 @@ import Stripe from 'stripe';
 dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
 
+console.log("middleware log test");
+console.error("middleware error test");
+
 const app = express();
 const apiRouter = express.Router();
 app.use(cookieParser()); 
@@ -56,6 +59,7 @@ app.post("/webhook", express.raw({ type: "application/json" }),
       const type = session.metadata.type
 
       console.log("Webhook received:", { email, passes, type });
+      console.error("Webhook received:", { email, passes, type });
 
       try {
         if (type === "dues") {
