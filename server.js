@@ -31,10 +31,6 @@ const db = mysql.createPool({
   queueLimit: 0,
 });
 
-app.use('/webhook', express.raw({ type: 'application/json' }));
-
-app.use(express.json());
-
 app.post("/webhook", express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
@@ -81,6 +77,8 @@ app.post("/webhook", express.raw({ type: "application/json" }),
     res.json({ received: true });
   }
 );
+
+app.use(express.json());
 
 app.use('/api', apiRouter); // Mount API router
 
@@ -343,7 +341,7 @@ apiRouter.post('/purchase-dues', async (req, res) => {
         mode: 'payment',
         success_url: "https://depaulclimbing.com/success",
         cancel_url: "https://depaulclimbing.com/cancel",
-        metadata: { email, type:"dues" },
+        metadata: { email, type: "dues" },
     })
 
     res.json({ id: session.id });
