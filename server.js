@@ -125,6 +125,7 @@ apiRouter.get('/refresh', async (req, res) => {
   }
 });
 
+// Get user database
 apiRouter.get('/users', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM users');
@@ -134,6 +135,7 @@ apiRouter.get('/users', async (req, res) => {
   }
 });
 
+// Get check-ins database
 apiRouter.get('/check-ins', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM `check-ins` ORDER BY DateTime DESC');
@@ -143,6 +145,7 @@ apiRouter.get('/check-ins', async (req, res) => {
   }
 });
 
+// login route
 apiRouter.post('/auth', async (req, res) => {
   const { user, pwd } = req.body;
   try {
@@ -190,6 +193,7 @@ apiRouter.post('/logout', (req, res) => {
     return res.json({ message: 'Logged out successfully' });
 });
 
+// inserts new user into users database
 apiRouter.post('/register', async (req, res) => {
   const { email, pwd, firstName, lastName, membership } = req.body;
   console.log(email, pwd, firstName, lastName, membership);
