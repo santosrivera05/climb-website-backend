@@ -12,7 +12,7 @@ import Stripe from 'stripe';
 dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
 
-console.log("middleware log test");
+console.error("middleware log test");
 console.error("middleware error test");
 
 const app = express();
@@ -32,6 +32,12 @@ const db = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+});
+
+// to hopefully see webhook logs in railway
+app.use((req, res, next) => {
+  console.error("➡️ Incoming request:", req.method, req.url);
+  next();
 });
 
 app.post("/webhook", express.raw({ type: "application/json" }),
@@ -58,19 +64,19 @@ app.post("/webhook", express.raw({ type: "application/json" }),
       const passes = session.metadata.passes
       const type = session.metadata.type
 
-      console.log("Webhook received:", { email, passes, type });
+      console.error("Webhook received:", { email, passes, type });
       console.error("Webhook received:", { email, passes, type });
 
       try {
         if (type === "dues") {
           await db.execute("UPDATE users SET Dues = 1 WHERE Email = ?", [email]);
-          console.log(`✅ Dues paid for ${email}`);
+          console.error(`✅ Dues paid for ${email}`);
         } else if (type === "passes") {
           await db.execute(
             "UPDATE users SET Passes = Passes + ? WHERE Email = ?",
             [passes, email]
           );
-          console.log(`✅ Added ${passes} passes for ${email}`);
+          console.error(`✅ Added ${passes} passes for ${email}`);
         }
       } catch (dbErr) {
         console.error("❌ Database update failed:", dbErr);
@@ -196,7 +202,7 @@ apiRouter.post('/logout', (req, res) => {
 // inserts new user into users database
 apiRouter.post('/register', async (req, res) => {
   const { email, pwd, firstName, lastName, membership } = req.body;
-  console.log(email, pwd, firstName, lastName, membership);
+  console.error(email, pwd, firstName, lastName, membership);
 
   try {
     // hash password with async/await instead of callback
@@ -229,7 +235,7 @@ apiRouter.post("/use-pass", async (req, res) => {
         String(cstDate.getMinutes()).padStart(2, '0') + ':' +
         String(cstDate.getSeconds()).padStart(2, '0');
 
-    console.log(currentDateTime); // Will output: 2025-08-05 19:48:42
+    console.error(currentDateTime); // Will output: 2025-08-05 19:48:42
 
   try {
     if (membership === 0) { // if user does not have membership, skip passes
@@ -394,16 +400,16 @@ async function sendVerificationEmail(recipient_email, OTP) {
             </html>`,
         });
 
-        console.log(data); // logs response data
+        console.error(data); // logs response data
         return data;
     } catch (error) {
-        console.log(error); //logs any error
+        console.error(error); //logs any error
     }
 };
 
 apiRouter.post("/send-recovery-email", async (req, res) => {
   const { recipient_email, pwd, firstName, OTP } = req.body;
-  console.log(recipient_email, pwd, firstName, OTP);
+  console.error(recipient_email, pwd, firstName, OTP);
 
   try {
     if (!firstName) {
@@ -494,5 +500,5 @@ apiRouter.post("/reset-password", async (req, res) => {
 
 // Start server
 app.listen(3000, () => {
-    console.log('Server listening on port 3000');
+    console.error('Server listening on port 3000');
 });
