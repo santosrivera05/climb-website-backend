@@ -305,8 +305,8 @@ apiRouter.post('/purchase-passes', async (req, res) => {
                     quantity: 1,
                 },
             ],
-            success_url: "https://depaulclimbing.com/success",
-            cancel_url: "https://depaulclimbing.com/cancel",
+            success_url: "https://depaulclimbing.com", // /success
+            cancel_url: "https://depaulclimbing.com", // /cancel
             metadata: { email, passes, type: "passes" },
         });
 
@@ -339,8 +339,8 @@ apiRouter.post('/purchase-dues', async (req, res) => {
             }
         ],
         mode: 'payment',
-        success_url: "https://depaulclimbing.com/success",
-        cancel_url: "https://depaulclimbing.com/cancel",
+        success_url: "https://depaulclimbing.com", // /success
+        cancel_url: "https://depaulclimbing.com", // /cancel
         metadata: { email, type: "dues" },
     })
 
