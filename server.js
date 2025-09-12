@@ -74,7 +74,7 @@ app.post("/webhook", express.raw({ type: "*/*" }),
         } else if (type === "passes") {
           await db.execute(
             "UPDATE users SET Passes = Passes + ? WHERE Email = ?",
-            [passes, email]
+            [parseInt(passes), email]
           );
           console.error(`✅ Added ${passes} passes for ${email}`);
         }
@@ -87,6 +87,11 @@ app.post("/webhook", express.raw({ type: "*/*" }),
     res.json({ received: true });
   }
 );
+
+app.get("/webhook", (req, res) => {
+  console.error("🔥 GET request to webhook endpoint");
+  res.json({ status: "Webhook endpoint is reachable", timestamp: new Date().toISOString() });
+});
 
 app.use(express.json());
 
