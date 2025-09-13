@@ -456,12 +456,8 @@ apiRouter.post("/send-recovery-email", async (req, res) => {
 apiRouter.post("/reset-password", async (req, res) => {
   const { email, pwd } = req.body;
 
-  if (!email || !pwd) {
-    return res
-      .status(400)
-      .json({ message: "Email and password are required" });
-  }
-
+  if (!email)
+    return res.status(400).json({ message: "Email not found" });
   try {
     // 1. Check if user exists
     const [results] = await db.execute(
