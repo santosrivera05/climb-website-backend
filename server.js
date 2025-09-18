@@ -12,9 +12,6 @@ import Stripe from 'stripe';
 dotenv.config();
 const stripe = Stripe(process.env.STRIPE_SECRET);
 
-console.error("middleware log test");
-console.error("middleware error test");
-
 const app = express();
 const apiRouter = express.Router();
 app.use(cookieParser()); 
@@ -182,7 +179,7 @@ apiRouter.post('/auth', async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: true, // change to true in production (https)
-      sameSite: 'Strict',
+      sameSite: 'None',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -198,7 +195,7 @@ apiRouter.post('/logout', (req, res) => {
     res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: true, // set to true in production (HTTPS)
-        sameSite: 'Strict',
+        sameSite: 'None',
         path: '/'
     });
     return res.json({ message: 'Logged out successfully' });
@@ -207,7 +204,7 @@ apiRouter.post('/logout', (req, res) => {
 // inserts new user into users database
 apiRouter.post('/register', async (req, res) => {
   const { email, pwd, firstName, lastName, membership } = req.body;
-  console.error(email, pwd, firstName, lastName, membership);
+  // console.error(email, pwd, firstName, lastName, membership);
 
   try {
     // hash password with async/await instead of callback
@@ -240,7 +237,7 @@ apiRouter.post("/use-pass", async (req, res) => {
         String(cstDate.getMinutes()).padStart(2, '0') + ':' +
         String(cstDate.getSeconds()).padStart(2, '0');
 
-    console.error(currentDateTime); // Will output: 2025-08-05 19:48:42
+    // console.error(currentDateTime); // Will output: 2025-08-05 19:48:42
 
   try {
     if (membership === 0) { // if user does not have membership, skip passes
@@ -414,7 +411,7 @@ async function sendVerificationEmail(recipient_email, OTP) {
 
 apiRouter.post("/send-recovery-email", async (req, res) => {
   const { recipient_email, pwd, firstName, OTP } = req.body;
-  console.error(recipient_email, pwd, firstName, OTP);
+  // console.error(recipient_email, pwd, firstName, OTP);
 
   try {
     if (!firstName) {
