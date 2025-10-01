@@ -94,9 +94,15 @@ app.use(express.json());
 
 app.use('/api', apiRouter); // Mount API router
 
-apiRouter.post('/refresh', (req, res) => {
+apiRouter.post('/refresh', async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  try {
+    const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [decoded.email]);
+    if (results.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    const dbUser = results[0];
 
   jwt.verify(token, 'your_refresh_token_secret', (err, decoded) => {
     if (err) return res.status(403).json({ message: 'Invalid refresh token' });
@@ -107,8 +113,13 @@ apiRouter.post('/refresh', (req, res) => {
       { expiresIn: '15m' }
     );
 
-    res.json({ accessToken });
+    const { Password, ...userData } = dbUser;
+
+    res.json({ accessToken, user: userData });
   });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
 });
 
 // Get user database
