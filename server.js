@@ -94,43 +94,21 @@ app.use(express.json());
 
 app.use('/api', apiRouter); // Mount API router
 
-apiRouter.get('/refresh', async (req, res) => {
-  const refreshToken = req.cookies?.refreshToken;
-  if (!refreshToken) return res.status(401).json({ message: 'No refresh token provided' });
+apiRouter.post('/refresh', (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(401).json({ message: 'No token provided' });
 
-  try {
-    // Verify refresh token
-    const decoded = jwt.verify(refreshToken, 'your_refresh_token_secret');
+  jwt.verify(token, 'your_refresh_token_secret', (err, decoded) => {
+    if (err) return res.status(403).json({ message: 'Invalid refresh token' });
 
-    // Fetch user from DB
-    const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [decoded.email]);
-    if (results.length === 0) return res.status(404).json({ message: 'User not found' });
-
-    const dbUser = results[0];
-
-    // Generate new access token
     const accessToken = jwt.sign(
-      { email: dbUser.Email, role: dbUser.Role },
+      { email: decoded.email, role: decoded.role },
       'your_access_token_secret',
       { expiresIn: '15m' }
     );
 
-    // Exclude password from response
-    const { Password, ...userData } = dbUser;
-
-    res.json({
-      accessToken,
-      roles: [dbUser.Role], // Keep array format for frontend
-      user: userData,
-    });
-
-  } catch (err) {
-    console.error('Refresh token error:', err);
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-      return res.status(403).json({ message: 'Invalid or expired refresh token' });
-    }
-    res.status(500).json({ message: 'Server error' });
-  }
+    res.json({ accessToken });
+  });
 });
 
 // Get user database
@@ -176,30 +154,30 @@ apiRouter.post('/auth', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: true, // change to true in production (https)
-      sameSite: 'None',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    // res.cookie('refreshToken', refreshToken, {
+    //   httpOnly: true,
+    //   secure: true, // change to true in production (https)
+    //   sameSite: 'None',
+    //   path: '/',
+    //   maxAge: 7 * 24 * 60 * 60 * 1000,
+    // });
 
     const { Password, ...userData } = dbUser;
-    return res.json({ user: userData, accessToken });
+    return res.json({ user: userData, accessToken, refreshToken });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err });
   }
 });
 
-apiRouter.post('/logout', (req, res) => {
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: true, // set to true in production (HTTPS)
-        sameSite: 'None',
-        path: '/'
-    });
-    return res.json({ message: 'Logged out successfully' });
-});
+// apiRouter.post('/logout', (req, res) => {
+//     res.clearCookie('refreshToken', {
+//         httpOnly: true,
+//         secure: true, // set to true in production (HTTPS)
+//         sameSite: 'None',
+//         path: '/'
+//     });
+//     return res.json({ message: 'Logged out successfully' });
+// });
 
 // inserts new user into users database
 apiRouter.post('/register', async (req, res) => {
