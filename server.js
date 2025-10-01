@@ -99,6 +99,8 @@ apiRouter.post('/refresh', async (req, res) => {
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {
+    const decoded = jwt.verify(token, 'your_refresh_token_secret');
+    
     const [results] = await db.execute("SELECT * FROM users WHERE Email = ?", [decoded.email]);
     if (results.length === 0) return res.status(404).json({ message: 'User not found' });
 
