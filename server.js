@@ -375,6 +375,7 @@ If you did not request this code, you can safely ignore this email.
 
 - DePaul Climbing
 This is an automated message from DePaul Climbing (depaulclimbing.com). Please do not reply to this email.`,
+        subject: "DePaul Climbing Verification Code",
         html:`<!DOCTYPE html>
             <html lang="en" >
             <head>
@@ -402,6 +403,26 @@ This is an automated message from DePaul Climbing (depaulclimbing.com). Please d
             </div>
             <!-- partial -->
 
+            <title>DePaul Climbing - OTP Email Template</title>
+
+
+            </head>
+            <body>
+            <!-- partial:index.partial.html -->
+            <div style="font-family: Helvetica,Arial,sans-serif;min-width:1000px;overflow:auto;line-height:2">
+            <div style="margin:50px auto;width:70%;padding:20px 0">
+                <div style="border-bottom:1px solid #eee">
+                <a href="" style="font-size:1.4em;color: #00466a;text-decoration:none;font-weight:600">DePaul Climbing</a>
+                </div>
+                <p style="font-size:1.1em">Hi,</p>
+                <p>Use the following code to complete verification. OTP is valid for 5 minutes</p>
+                <h2 style="background: #00466a;margin: 0 auto;width: max-content;padding: 0 10px;color: #fff;border-radius: 4px;">${OTP}</h2>
+                <p style="font-size:0.9em;">Regards,<br />DePaul Climbing</p>
+                <hr style="border:none;border-top:1px solid #eee" />
+            </div>
+            </div>
+            <!-- partial -->
+            
             </body>
             </html>`,
         });
